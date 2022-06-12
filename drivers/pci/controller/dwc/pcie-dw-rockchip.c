@@ -10,13 +10,17 @@
 
 #include <linux/clk.h>
 #include <linux/gpio/consumer.h>
+#include <linux/irqchip/chained_irq.h>
+#include <linux/irqdomain.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
+#include <linux/of_irq.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/phy/pcie.h>
 
 #include "pcie-designware.h"
 
@@ -26,6 +30,7 @@
  */
 #define HIWORD_UPDATE(mask, val) (((mask) << 16) | (val))
 #define HIWORD_UPDATE_BIT(val)	HIWORD_UPDATE(val, val)
+#define HIWORD_DISABLE_BIT(val)	HIWORD_UPDATE(val, ~val)
 
 #define to_rockchip_pcie(x) dev_get_drvdata((x)->dev)
 
@@ -36,10 +41,12 @@
 #define PCIE_LINKUP			(PCIE_SMLH_LINKUP | PCIE_RDLH_LINKUP)
 #define PCIE_L0S_ENTRY			0x11
 #define PCIE_CLIENT_GENERAL_CONTROL	0x0
+#define PCIE_CLIENT_INTR_STATUS_LEGACY	0x8
+#define PCIE_CLIENT_INTR_MASK_LEGACY	0x1c
 #define PCIE_CLIENT_GENERAL_DEBUG	0x104
-#define PCIE_CLIENT_HOT_RESET_CTRL      0x180
+#define PCIE_CLIENT_HOT_RESET_CTRL	0x180
 #define PCIE_CLIENT_LTSSM_STATUS	0x300
-#define PCIE_LTSSM_ENABLE_ENHANCE       BIT(4)
+#define PCIE_LTSSM_ENABLE_ENHANCE	BIT(4)
 #define PCIE_LTSSM_STATUS_MASK		GENMASK(5, 0)
 
 struct rockchip_pcie {
@@ -51,6 +58,9 @@ struct rockchip_pcie {
 	struct reset_control		*rst;
 	struct gpio_desc		*rst_gpio;
 	struct regulator                *vpcie3v3;
+	struct irq_domain		*irq_domain;
+	bool				bifurcation;
+	u32				lane_map[2];
 };
 
 static int rockchip_pcie_readl_apb(struct rockchip_pcie *rockchip,
@@ -63,6 +73,76 @@ static void rockchip_pcie_writel_apb(struct rockchip_pcie *rockchip,
 						u32 val, u32 reg)
 {
 	writel_relaxed(val, rockchip->apb_base + reg);
+}
+
+static void rockchip_pcie_legacy_int_handler(struct irq_desc *desc)
+{
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	struct rockchip_pcie *rockchip = irq_desc_get_handler_data(desc);
+	unsigned long reg, hwirq;
+
+	chained_irq_enter(chip, desc);
+
+	reg = rockchip_pcie_readl_apb(rockchip, PCIE_CLIENT_INTR_STATUS_LEGACY);
+
+	for_each_set_bit(hwirq, &reg, 4)
+		generic_handle_domain_irq(rockchip->irq_domain, hwirq);
+
+	chained_irq_exit(chip, desc);
+}
+
+static void rockchip_intx_mask(struct irq_data *data)
+{
+	rockchip_pcie_writel_apb(irq_data_get_irq_chip_data(data), HIWORD_UPDATE_BIT(BIT(data->hwirq)),
+				 PCIE_CLIENT_INTR_MASK_LEGACY);
+};
+
+static void rockchip_intx_unmask(struct irq_data *data)
+{
+	rockchip_pcie_writel_apb(irq_data_get_irq_chip_data(data), HIWORD_DISABLE_BIT(BIT(data->hwirq)),
+				 PCIE_CLIENT_INTR_MASK_LEGACY);
+};
+
+static struct irq_chip rockchip_intx_irq_chip = {
+	.name			= "INTx",
+	.irq_mask		= rockchip_intx_mask,
+	.irq_unmask		= rockchip_intx_unmask,
+	.flags			= IRQCHIP_SKIP_SET_WAKE | IRQCHIP_MASK_ON_SUSPEND,
+};
+
+static int rockchip_pcie_intx_map(struct irq_domain *domain, unsigned int irq,
+				  irq_hw_number_t hwirq)
+{
+	irq_set_chip_and_handler(irq, &rockchip_intx_irq_chip, handle_level_irq);
+	irq_set_chip_data(irq, domain->host_data);
+
+	return 0;
+}
+
+static const struct irq_domain_ops intx_domain_ops = {
+	.map = rockchip_pcie_intx_map,
+};
+
+static int rockchip_pcie_init_irq_domain(struct rockchip_pcie *rockchip)
+{
+	struct device *dev = rockchip->pci.dev;
+	struct device_node *intc;
+
+	intc = of_get_child_by_name(dev->of_node, "legacy-interrupt-controller");
+	if (!intc) {
+		dev_err(dev, "missing child interrupt-controller node\n");
+		return -EINVAL;
+	}
+
+	rockchip->irq_domain = irq_domain_add_linear(intc, PCI_NUM_INTX,
+						    &intx_domain_ops, rockchip);
+	of_node_put(intc);
+	if (!rockchip->irq_domain) {
+		dev_err(dev, "failed to get a INTx IRQ domain\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static void rockchip_pcie_enable_ltssm(struct rockchip_pcie *rockchip)
@@ -111,7 +191,19 @@ static int rockchip_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	struct rockchip_pcie *rockchip = to_rockchip_pcie(pci);
+	struct device *dev = rockchip->pci.dev;
 	u32 val = HIWORD_UPDATE_BIT(PCIE_LTSSM_ENABLE_ENHANCE);
+	int irq, ret;
+
+	irq = of_irq_get_byname(dev->of_node, "legacy");
+	if (irq < 0)
+		return irq;
+
+	ret = rockchip_pcie_init_irq_domain(rockchip);
+	if (ret < 0)
+		dev_err(dev, "failed to init irq domain\n");
+
+	irq_set_chained_handler_and_data(irq, rockchip_pcie_legacy_int_handler, rockchip);
 
 	/* LTSSM enable control mode */
 	rockchip_pcie_writel_apb(rockchip, val, PCIE_CLIENT_HOT_RESET_CTRL);
@@ -152,7 +244,12 @@ static int rockchip_pcie_resource_get(struct platform_device *pdev,
 	if (IS_ERR(rockchip->rst_gpio))
 		return PTR_ERR(rockchip->rst_gpio);
 
-	return 0;
+	rockchip->rst = devm_reset_control_array_get_exclusive(&pdev->dev);
+	if (IS_ERR(rockchip->rst))
+		return dev_err_probe(&pdev->dev, PTR_ERR(rockchip->rst),
+				     "failed to get reset lines\n");
+
+	return reset_control_assert(rockchip->rst);
 }
 
 static int rockchip_pcie_phy_init(struct rockchip_pcie *rockchip)
@@ -164,6 +261,12 @@ static int rockchip_pcie_phy_init(struct rockchip_pcie *rockchip)
 	if (IS_ERR(rockchip->phy))
 		return dev_err_probe(dev, PTR_ERR(rockchip->phy),
 				     "missing PHY\n");
+
+	if (rockchip->bifurcation) {
+		ret = phy_set_mode_ext(rockchip->phy, PHY_MODE_PCIE, PHY_MODE_PCIE_BIFURCATION);
+		if (ret)
+			return ret;
+	}
 
 	ret = phy_init(rockchip->phy);
 	if (ret < 0)
@@ -182,18 +285,6 @@ static void rockchip_pcie_phy_deinit(struct rockchip_pcie *rockchip)
 	phy_power_off(rockchip->phy);
 }
 
-static int rockchip_pcie_reset_control_release(struct rockchip_pcie *rockchip)
-{
-	struct device *dev = rockchip->pci.dev;
-
-	rockchip->rst = devm_reset_control_array_get_exclusive(dev);
-	if (IS_ERR(rockchip->rst))
-		return dev_err_probe(dev, PTR_ERR(rockchip->rst),
-				     "failed to get reset lines\n");
-
-	return reset_control_deassert(rockchip->rst);
-}
-
 static const struct dw_pcie_ops dw_pcie_ops = {
 	.link_up = rockchip_pcie_link_up,
 	.start_link = rockchip_pcie_start_link,
@@ -203,8 +294,10 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rockchip_pcie *rockchip;
+	unsigned int lanecnt = 0;
 	struct pcie_port *pp;
 	int ret;
+	int len;
 
 	rockchip = devm_kzalloc(dev, sizeof(*rockchip), GFP_KERNEL);
 	if (!rockchip)
@@ -237,11 +330,22 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 		}
 	}
 
+	len = of_property_read_variable_u32_array(dev->of_node, "lane-map", rockchip->lane_map,
+						  2, ARRAY_SIZE(rockchip->lane_map));
+
+	for (int i = 0; i < len; i++)
+		if (rockchip->lane_map[i])
+			lanecnt++;
+
+	rockchip->bifurcation = ((lanecnt > 0) && (lanecnt != len));
+
+	dev_info(dev, "bifurcation: %s\n", rockchip->bifurcation ? "true" : "false");
+
 	ret = rockchip_pcie_phy_init(rockchip);
 	if (ret)
 		goto disable_regulator;
 
-	ret = rockchip_pcie_reset_control_release(rockchip);
+	ret = reset_control_deassert(rockchip->rst);
 	if (ret)
 		goto deinit_phy;
 

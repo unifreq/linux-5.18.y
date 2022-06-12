@@ -18,9 +18,9 @@
 	#size-cells = <2>;
 
 	aliases {
-		mmc0 = &sd_emmc_b; /* SD card */
-		mmc1 = &sd_emmc_c; /* eMMC */
-		mmc2 = &sd_emmc_a; /* SDIO */
+		mmc0 = &sd_emmc_a; /* SDIO */
+		mmc1 = &sd_emmc_b; /* SD card */
+		mmc2 = &sd_emmc_c; /* eMMC */
 	};
 
 	chosen {
@@ -1890,7 +1890,7 @@
 							groups = "uart_ao_a_tx",
 								 "uart_ao_a_rx";
 							function = "uart_ao_a";
-							bias-disable;
+							bias-pull-up;
 						};
 					};
 
@@ -1899,7 +1899,7 @@
 							groups = "uart_ao_a_cts",
 								 "uart_ao_a_rts";
 							function = "uart_ao_a";
-							bias-disable;
+							bias-pull-up;
 						};
 					};
 

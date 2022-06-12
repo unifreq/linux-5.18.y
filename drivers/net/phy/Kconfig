@@ -63,6 +63,13 @@ config SFP
 
 comment "MII PHY device drivers"
 
+config AC200_PHY
+	tristate "AC200 EPHY"
+	depends on NVMEM
+	depends on OF
+	help
+	  Fast ethernet PHY as found in X-Powers AC200 multi-function device.
+
 config AMD_PHY
 	tristate "AMD PHYs"
 	help
@@ -172,6 +179,11 @@ config ICPLUS_PHY
 	tristate "ICPlus PHYs"
 	help
 	  Currently supports the IP175C and IP1001 PHYs.
+
+config JLSEMI_JL2XX1_PHY
+	tristate "JLSemi JL2XX1 PHYs"
+	help
+	  Currently supports the JLSemi jl2xx1 PHYs.
 
 config LXT_PHY
 	tristate "Intel LXT PHYs"
