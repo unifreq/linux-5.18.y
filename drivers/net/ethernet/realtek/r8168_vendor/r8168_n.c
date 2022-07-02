@@ -3714,9 +3714,15 @@ static void rtl8168_mac_loopback_test(struct rtl8168_private *tp)
         txd->opts2 = 0;
         while (1) {
                 memset(tmpAddr, pattern++, len - 14);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
+                dma_sync_single_for_device(&tp->pci_dev->dev,
+                                               le64_to_cpu(mapping),
+                                               len, DMA_TO_DEVICE);
+#else
                 pci_dma_sync_single_for_device(tp->pci_dev,
                                                le64_to_cpu(mapping),
                                                len, DMA_TO_DEVICE);
+#endif
                 txd->opts1 = cpu_to_le32(DescOwn | FirstFrag | LastFrag | len);
 
                 RTL_W32(tp, RxConfig, RTL_R32(tp, RxConfig)  | AcceptMyPhys);
@@ -3742,7 +3748,11 @@ static void rtl8168_mac_loopback_test(struct rtl8168_private *tp)
                 if (rx_len == len) {
                         dma_sync_single_for_cpu(tp_to_dev(tp), le64_to_cpu(rxd->addr), tp->rx_buf_sz, DMA_FROM_DEVICE);
                         i = memcmp(skb->data, rx_skb->data, rx_len);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
+                        dma_sync_single_for_device(&tp->pci_dev->dev, le64_to_cpu(rxd->addr), tp->rx_buf_sz, DMA_FROM_DEVICE);
+#else
                         pci_dma_sync_single_for_device(tp->pci_dev, le64_to_cpu(rxd->addr), tp->rx_buf_sz, DMA_FROM_DEVICE);
+#endif
                         if (i == 0) {
 //              dev_printk(KERN_INFO, tp_to_dev(tp), "loopback test finished\n",rx_len,len);
                                 break;
@@ -26445,11 +26455,20 @@ rtl8168_init_board(struct pci_dev *pdev,
 
         if ((sizeof(dma_addr_t) > 4) &&
             use_dac &&
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
+            !dma_set_mask(&pdev->dev, DMA_BIT_MASK(64)) &&
+            !dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(64))) {
+#else
             !pci_set_dma_mask(pdev, DMA_BIT_MASK(64)) &&
             !pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64))) {
+#endif
                 dev->features |= NETIF_F_HIGHDMA;
         } else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,18,0)
+                rc = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
+#else
                 rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
+#endif
                 if (rc < 0) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
                         if (netif_msg_probe(tp))
