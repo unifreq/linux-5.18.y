@@ -12,6 +12,8 @@
 	compatible = "rockchip,rk3568-lunzn-r68s", "rockchip,rk3568";
 
 	aliases {
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
 		ethernet2 = &rtl8125_2;
 		ethernet3 = &rtl8125_1;
 
@@ -500,14 +502,15 @@
 };
 
 &pcie30phy {
+	lane-map = /bits/ 8 <2 1>;
 	status = "okay";
 };
 
 &pcie3x1 {
-	rockchip,bifurcation;
 	rockchip,init-delay-ms = <100>;
 	reset-gpios = <&gpio0 RK_PC3 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
+	lane-map = <0 1>;
 	status = "okay";
 
 	pcie@10 {
@@ -525,9 +528,9 @@
 };
 
 &pcie3x2 {
-	rockchip,bifurcation;
 	reset-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
+	lane-map = <1 0>;
 	status = "okay";
 
 	pcie@20 {
