@@ -131,6 +131,18 @@
 	cpu-supply = <&vdd_cpu>;
 };
 
+&cpu1 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&cpu2 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&cpu3 {
+	cpu-supply = <&vdd_cpu>;
+};
+
 &gmac0 {
 	phy-mode = "rgmii";
 	clock_in_out = "input";
@@ -185,11 +197,6 @@
 	status = "okay";
 };
 
-&gpu {
-	mali-supply = <&vdd_gpu>;
-	status = "okay";
-};
-
 &i2c0 {
 	status = "okay";
 
@@ -240,34 +247,34 @@
 		vcc8-supply = <&vcc3v3_sys>;
 		vcc9-supply = <&vcc3v3_sys>;
 
-		pwrkey {
-			status = "okay";
-		};
+		// pwrkey {
+		// 	status = "okay";
+		// };
 
-		pinctrl_rk8xx: pinctrl_rk8xx {
-			gpio-controller;
-			#gpio-cells = <2>;
+		// pinctrl_rk8xx: pinctrl_rk8xx {
+		// 	gpio-controller;
+		// 	#gpio-cells = <2>;
 
-			rk817_slppin_null: rk817_slppin_null {
-				pins = "gpio_slp";
-				function = "pin_fun0";
-			};
+		// 	rk817_slppin_null: rk817_slppin_null {
+		// 		pins = "gpio_slp";
+		// 		function = "pin_fun0";
+		// 	};
 
-			rk817_slppin_slp: rk817_slppin_slp {
-				pins = "gpio_slp";
-				function = "pin_fun1";
-			};
+		// 	rk817_slppin_slp: rk817_slppin_slp {
+		// 		pins = "gpio_slp";
+		// 		function = "pin_fun1";
+		// 	};
 
-			rk817_slppin_pwrdn: rk817_slppin_pwrdn {
-				pins = "gpio_slp";
-				function = "pin_fun2";
-			};
+		// 	rk817_slppin_pwrdn: rk817_slppin_pwrdn {
+		// 		pins = "gpio_slp";
+		// 		function = "pin_fun2";
+		// 	};
 
-			rk817_slppin_rst: rk817_slppin_rst {
-				pins = "gpio_slp";
-				function = "pin_fun3";
-			};
-		};
+		// 	rk817_slppin_rst: rk817_slppin_rst {
+		// 		pins = "gpio_slp";
+		// 		function = "pin_fun3";
+		// 	};
+		// };
 
 		regulators {
 			vdd_logic: DCDC_REG1 {
@@ -286,8 +293,8 @@
 			};
 
 			vdd_gpu: DCDC_REG2 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <500000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-init-microvolt = <900000>;
@@ -312,8 +319,8 @@
 			};
 
 			vdd_npu: DCDC_REG4 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <500000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-init-microvolt = <900000>;
@@ -339,8 +346,8 @@
 			};
 
 			vdda0v9_image: LDO_REG1 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <950000>;
 				regulator-max-microvolt = <950000>;
 				regulator-name = "vdda0v9_image";
@@ -376,8 +383,8 @@
 			};
 
 			vccio_acodec: LDO_REG4 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vccio_acodec";
@@ -388,8 +395,8 @@
 			};
 
 			vccio_sd: LDO_REG5 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vccio_sd";
@@ -438,8 +445,8 @@
 			};
 
 			vcca1v8_image: LDO_REG9 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-min-microvolt = <950000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-init-microvolt = <950000>;
@@ -462,8 +469,8 @@
 			};
 
 			vcc3v3_sd: SWITCH_REG2 {
-				regulator-always-on;
-				regulator-boot-on;
+				// regulator-always-on;
+				// regulator-boot-on;
 				regulator-name = "vcc3v3_sd";
 
 				regulator-state-mem {
@@ -617,15 +624,20 @@
 	status = "okay";
 };
 
-&vop {
-	assigned-clocks = <&cru DCLK_VOP0>, <&cru DCLK_VOP1>;
-	assigned-clock-parents = <&pmucru PLL_HPLL>, <&cru PLL_VPLL>;
-	status = "okay";
-};
+// &gpu {
+// 	mali-supply = <&vdd_gpu>;
+// 	status = "okay";
+// };
 
-&vop_mmu {
-	status = "okay";
-};
+// &vop {
+// 	assigned-clocks = <&cru DCLK_VOP0>, <&cru DCLK_VOP1>;
+// 	assigned-clock-parents = <&pmucru PLL_HPLL>, <&cru PLL_VPLL>;
+// 	status = "okay";
+// };
+
+// &vop_mmu {
+// 	status = "okay";
+// };
 
 // &crypto {
 // 	status = "okay";
