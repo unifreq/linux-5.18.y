@@ -601,6 +601,14 @@
 	status = "okay";
 };
 
+&combphy0 {
+	status = "okay";
+};
+
+&combphy1 {
+	status = "okay";
+};
+
 &usb2phy0 {
 	status = "okay";
 };
