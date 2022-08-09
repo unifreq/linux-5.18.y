@@ -506,6 +506,7 @@
 	rockchip,init-delay-ms = <100>;
 	reset-gpios = <&gpio0 RK_PC3 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
+	bus-scan-delay-ms = <1000>;
 	lane-map = <0 1>;
 	status = "okay";
 
@@ -526,6 +527,7 @@
 &pcie3x2 {
 	reset-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
+	bus-scan-delay-ms = <1000>;
 	lane-map = <1 0>;
 	status = "okay";
 
