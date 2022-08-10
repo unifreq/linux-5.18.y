@@ -20,7 +20,6 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
-#include <linux/phy/pcie.h>
 
 #include "pcie-designware.h"
 
@@ -59,8 +58,6 @@ struct rockchip_pcie {
 	struct gpio_desc		*rst_gpio;
 	struct regulator                *vpcie3v3;
 	struct irq_domain		*irq_domain;
-	bool				bifurcation;
-	u32				lane_map[2];
 };
 
 static int rockchip_pcie_readl_apb(struct rockchip_pcie *rockchip,
@@ -262,12 +259,6 @@ static int rockchip_pcie_phy_init(struct rockchip_pcie *rockchip)
 		return dev_err_probe(dev, PTR_ERR(rockchip->phy),
 				     "missing PHY\n");
 
-	if (rockchip->bifurcation) {
-		ret = phy_set_mode_ext(rockchip->phy, PHY_MODE_PCIE, PHY_MODE_PCIE_BIFURCATION);
-		if (ret)
-			return ret;
-	}
-
 	ret = phy_init(rockchip->phy);
 	if (ret < 0)
 		return ret;
@@ -294,10 +285,8 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rockchip_pcie *rockchip;
-	unsigned int lanecnt = 0;
 	struct pcie_port *pp;
 	int ret;
-	int len;
 
 	rockchip = devm_kzalloc(dev, sizeof(*rockchip), GFP_KERNEL);
 	if (!rockchip)
@@ -329,17 +318,6 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 			return ret;
 		}
 	}
-
-	len = of_property_read_variable_u32_array(dev->of_node, "lane-map", rockchip->lane_map,
-						  2, ARRAY_SIZE(rockchip->lane_map));
-
-	for (int i = 0; i < len; i++)
-		if (rockchip->lane_map[i])
-			lanecnt++;
-
-	rockchip->bifurcation = ((lanecnt > 0) && (lanecnt != len));
-
-	dev_info(dev, "bifurcation: %s\n", rockchip->bifurcation ? "true" : "false");
 
 	ret = rockchip_pcie_phy_init(rockchip);
 	if (ret)

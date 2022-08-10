@@ -498,16 +498,15 @@
 };
 
 &pcie30phy {
-	lane-map = /bits/ 8 <2 1>;
+	data-lanes = <1 2>;
 	status = "okay";
 };
 
-&pcie3x1 {
-	rockchip,init-delay-ms = <100>;
+&pcie3x1 { 
+	num-lanes = <1>;
 	reset-gpios = <&gpio0 RK_PC3 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
 	bus-scan-delay-ms = <1000>;
-	lane-map = <0 1>;
 	status = "okay";
 
 	pcie@0,0 {
@@ -525,10 +524,10 @@
 };
 
 &pcie3x2 {
+	num-lanes = <1>;
 	reset-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie>;
 	bus-scan-delay-ms = <1000>;
-	lane-map = <1 0>;
 	status = "okay";
 
 	pcie@0,0 {
