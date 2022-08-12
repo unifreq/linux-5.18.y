@@ -12291,7 +12291,13 @@ static int rtl8125_try_msi(struct rtl8125_private *tp)
 #endif
 
 #if defined(RTL_USE_NEW_INTR_API)
-        if ((nvecs = pci_alloc_irq_vectors(pdev, tp->min_irq_nvecs, tp->max_irq_nvecs, PCI_IRQ_MSIX)) > 0)
+        if ((nvecs = pci_alloc_irq_vectors(pdev, tp->min_irq_nvecs, tp->max_irq_nvecs, PCI_IRQ_MSIX | PCI_IRQ_AFFINITY)) > 0)
+                msi |= RTL_FEATURE_MSIX;
+	else if ((nvecs = pci_alloc_irq_vectors(pdev, tp->min_irq_nvecs, tp->max_irq_nvecs, PCI_IRQ_MSIX)) > 0)
+                msi |= RTL_FEATURE_MSIX;
+	else if ((nvecs = pci_alloc_irq_vectors(pdev, tp->min_irq_nvecs, tp->max_irq_nvecs, PCI_IRQ_MSI | PCI_IRQ_AFFINITY)) > 0)
+                msi |= RTL_FEATURE_MSIX;
+	else if ((nvecs = pci_alloc_irq_vectors(pdev, tp->min_irq_nvecs, tp->max_irq_nvecs, PCI_IRQ_MSI)) > 0)
                 msi |= RTL_FEATURE_MSIX;
         else if ((nvecs = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES)) > 0 &&
                  pci_dev_msi_enabled(pdev))
